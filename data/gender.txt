@@ -1,0 +1,2 @@
+son,male,boy,father,he,husband,man
+daughter,female,girl,mother,she,wife,woman

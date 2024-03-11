@@ -1,0 +1,11 @@
+T,distribution
+"The [X], who played a role, is [Y]",0.2
+"The [X], who referred to, is [Y]",0.2
+"The [X], who was possible, is [Y]",0.1
+"The [X], who was common, is [Y]",0.1 
+"The [X], who was available, is [Y]",0.1
+"The [X], who was the first, is [Y]",0.1
+"The [X], who came, is [Y]",0.05
+"The [X], who went, is [Y]",0.05 
+"The [X], who took place, is [Y]",0.05
+"The [X], who was unknown, is [Y]",0.05
