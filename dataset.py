@@ -166,6 +166,11 @@ class GptDataset(PCFDataset):
         
         return class_probs
 
+# TODO: Add your dataset mapping here.
+DATASET_MAPPING = {
+    "bert": BertDataset,
+    "gpt2": GptDataset,
+}
   
 if __name__ == "__main__":
     import argparse

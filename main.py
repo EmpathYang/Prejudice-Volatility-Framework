@@ -13,18 +13,12 @@ import pickle
 import os
 
 from arguments import PCFArgumentsParser
-from dataset import BertDataset,GptDataset
+from dataset import DATASET_MAPPING
 from compute_risk import compute_risk
 
 AUTO_MODEL_MAPPING = {
     "MaskedLM": AutoModelForMaskedLM,
     "CausalLM": AutoModelForCausalLM,
-}
-
-# TODO: Add your dataset mapping here.
-DATASET_MAPPING = {
-    "bert": BertDataset,
-    "gpt2": GptDataset,
 }
 
 def main():
