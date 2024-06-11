@@ -12,7 +12,7 @@ import numpy as np
 import pickle
 import os
 
-from arguments import PCFArgumentsParser
+from arguments import PVFArgumentsParser
 from dataset import DATASET_MAPPING
 from compute_risk import compute_risk
 
@@ -23,7 +23,7 @@ AUTO_MODEL_MAPPING = {
 
 def main():
 
-    parser = PCFArgumentsParser()
+    parser = PVFArgumentsParser()
     args = parser.parse_args()
     
     set_seed(args.random_seed)
@@ -92,14 +92,14 @@ def main():
     P_matrix = P_matrix / np.sum(P_matrix, axis=-1, keepdims=True)
 
     # Compute risks and save them.
-    r_X, r_X_prejudice, r_X_caprice, R, R_prejudice, R_caprice = compute_risk(P_matrix=P_matrix, T_distribution=dataset.get_T_dist(), X_distribution=dataset.get_X_dist())
+    r_X, r_X_prejudice, r_X_volatility, R, R_prejudice, R_volatility = compute_risk(P_matrix=P_matrix, T_distribution=dataset.get_T_dist(), X_distribution=dataset.get_X_dist())
     risk_dict = {
         "r_X": r_X,
         "r_X_prejudice": r_X_prejudice,
-        "r_X_caprice": r_X_caprice,
+        "r_X_volatility": r_X_volatility,
         "R": R,
         "R_prejudice": R_prejudice,
-        "R_caprice": R_caprice
+        "R_volatility": R_volatility
     }
     os.makedirs(args.output_dir, exist_ok=True)
     with open(os.path.join(args.output_dir+f'/[M]{model.config.model_type}[T]{args.T}[X]{args.X}[Y]{args.Y}.pkl'), 'wb') as wf:

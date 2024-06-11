@@ -1,6 +1,19 @@
 import argparse
+from utils import CURRENT_DIR, DATA_DIR, TEMPLATE_DIR
 
-class PCFArgumentsParser:
+def parse_args_for_context_template_collection():
+    parser = argparse.ArgumentParser(description="Collect Context Templates")
+    
+    parser.add_argument("--nlp_model", type=str, required=False, default="en_core_web_lg", help="Spacy NLP model type")
+    parser.add_argument("--data_dir", type=str, required=False, default=DATA_DIR, help="Input data directory")
+    parser.add_argument("--input_file", type=str, required=False, default="articles.jsonl", help="Input file name")
+    parser.add_argument("--template_dir", type=str, required=False, default=TEMPLATE_DIR, help="Output template directory")
+    parser.add_argument("--template_file", type=str, required=True, help="Output file name")
+    
+    args = parser.parse_args()
+    return args
+
+class PVFArgumentsParser:
     def __init__(self):
         self.parser = argparse.ArgumentParser(description='Arguments pertaining to model evaluation.')
         self.add_arguments()

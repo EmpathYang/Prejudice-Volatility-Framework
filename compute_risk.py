@@ -29,7 +29,7 @@ def compute_r_prejudice(P_matrix: np.ndarray, T_distribution: np.ndarray):
     P_vector = np.sum(P_matrix*_T_distribution, axis=-2)
     return J(P_vector)
 
-def compute_r_caprice(P_matrix: np.ndarray, T_distribution: np.ndarray):
+def compute_r_volatility(P_matrix: np.ndarray, T_distribution: np.ndarray):
     _r = compute_r(P_matrix, T_distribution)
     _r_prejudice = compute_r_prejudice(P_matrix, T_distribution)
     return _r - _r_prejudice
@@ -40,11 +40,11 @@ def compute_R(r_vector: np.ndarray, X_distribution: np.ndarray):
 def compute_risk(P_matrix: np.ndarray, T_distribution: np.ndarray, X_distribution: np.ndarray):
     r_X = compute_r(P_matrix, T_distribution)
     r_X_prejudice = compute_r_prejudice(P_matrix, T_distribution)
-    r_X_caprice = compute_r_caprice(P_matrix, T_distribution)
+    r_X_volatility = compute_r_volatility(P_matrix, T_distribution)
     R = compute_R(r_X, X_distribution)
     R_prejudice = compute_R(r_X_prejudice, X_distribution)
-    R_caprice = compute_R(r_X_caprice, X_distribution)
-    return r_X, r_X_prejudice, r_X_caprice, R, R_prejudice, R_caprice
+    R_volatility = compute_R(r_X_volatility, X_distribution)
+    return r_X, r_X_prejudice, r_X_volatility, R, R_prejudice, R_volatility
 
 if __name__ == "__main__":
     P_matrix = np.array(
@@ -69,5 +69,5 @@ if __name__ == "__main__":
         [0.44, 0.56]]])
     T_distribution = np.array([0.4, 0.3, 0.2, 0.1])
     X_distribution = np.array([0.45, 0.35, 0.15, 0.05])
-    r_X, r_X_prejudice, r_X_caprice, R, R_prejudice, R_caprice = compute_risk(P_matrix=P_matrix, T_distribution=T_distribution, X_distribution=X_distribution)
-    print(r_X, r_X_prejudice, r_X_caprice, R, R_prejudice, R_caprice)
+    r_X, r_X_prejudice, r_X_volatility, R, R_prejudice, R_volatility = compute_risk(P_matrix=P_matrix, T_distribution=T_distribution, X_distribution=X_distribution)
+    print(r_X, r_X_prejudice, r_X_volatility, R, R_prejudice, R_volatility)

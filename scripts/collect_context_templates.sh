@@ -1,0 +1,1 @@
+python generate.py --template_file template TemplateForGender.csv

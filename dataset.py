@@ -5,12 +5,12 @@ import torch
 
 from utils import TEMPLATE_DIR, DATA_DIR
 
-class PCFDataset(Dataset):
+class PVFDataset(Dataset):
     def __init__(self, args):
         self.args = args
         self.T, self.T_dist = self.load_csv(os.path.join(TEMPLATE_DIR, "TemplatesFor"+args.T+".csv"), "T")
-        self.X, self.X_dist = self.load_csv(os.path.join(DATA_DIR, args.X+".csv"), "X")
-        self.Y = [y.strip().split(",") for y in open(os.path.join(DATA_DIR, args.Y+".txt"), "r").readlines()]
+        self.X, self.X_dist = self.load_csv(os.path.join(DATA_DIR, f"example_{args.X}.csv"), "X")
+        self.Y = [y.strip().split(",") for y in open(os.path.join(DATA_DIR, f"example_{args.Y}.txt"), "r").readlines()]
 
     def __len__(self):
         return len(self.T) * len(self.X)
@@ -34,7 +34,7 @@ class PCFDataset(Dataset):
         df = pd.read_csv(csv_filepath)
         return df[column_key].to_list(), df["distribution"].to_numpy()
     
-class BertDataset(PCFDataset):
+class BertDataset(PVFDataset):
     def __init__(self, args, tokenizer):
         super().__init__(args)
         self.mask_token_num = 5
@@ -98,7 +98,7 @@ class BertDataset(PCFDataset):
         
         return class_probs
 
-class GptDataset(PCFDataset):
+class GptDataset(PVFDataset):
     def __init__(self, args, tokenizer):
         super().__init__(args)
         self.mask_token_num = 5

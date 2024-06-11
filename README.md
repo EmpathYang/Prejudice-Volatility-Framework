@@ -3,7 +3,7 @@ Demo code for "[Prejudice and Volatility: A Statistical Framework for Measuring 
 
 ![](figures/framework.png)
 
-LLMs are revolutionizing society fast! 🚀 Ever wondered if your LLM assistant could be biased? Could it affect your mood, important decisions, job prospects, legal matters, healthcare, or even your kid’s future education? 😱 Need a flexible framework to measure this risk?
+LLMs are revolutionizing society fast! 🚀 Ever wondered if your LLM assistant could be biased? Could it affect your important decisions, job prospects, legal matters, healthcare, or even your kid’s future education? 😱 Need a flexible framework to measure this risk?
 
 Check out our new paper: the [Prejudice-Volatility Framework](https://arxiv.org/abs/2402.15481) (PVF)! 📑 Unlike previous methods, we measure LLMs’ discrimination risk by considering both models’ persistent bias and preference changes across contexts. Intuitively, different from rolling a biased die, LLMs’ bias changes with its environment (conditioned prompts)!
 
@@ -15,30 +15,50 @@ Our findings? 🧐 We tested 12 common LLMs and found: i) prejudice risk is the 
 Create environment:
 
 ```bash
-conda create -n pcf python=3.11.5
-conda activate pcf
+conda create -n pvf python=3.8.5
+conda activate pvf
 ```
 
 Install pytorch and python packages:
 
 ```bash
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
-cd Prejudice-Caprice-Framework
+conda install -n pvf pytorch==1.7.1 torchvision==0.8.2 torchaudio==0.7.2 cudatoolkit=11.0 -c pytorch
+cd Prejudice-Volatility-Framework
 pip install -r requirements.txt
+python -m spacy download en_core_web_lg
 ```
 
 ### Experiments
 
-Evaluate MaskedLM **bert**:
+#### Toy Examples for Explaining how PVF Work
+1. Evaluate MaskedLM **bert**:
 
-```bash
-cd script
-bash bert.sh
+```bash 
+bash scripts/example_bert.sh
 ```
 
-Evaluate CausalLM **gpt2**:
+2. Evaluate CausalLM **gpt2**:
 
 ```bash
-cd script
-bash gpt.sh
+bash scripts/example_gpt.sh
 ```
+
+#### Collect Context Templates:
+
+```bash
+bash scripts/collect_context_templates.sh
+```
+
+#### Replicate Results in the Paper
+
+1. Compute probabilities:
+```bash
+bash scripts/compute_probability.sh
+```
+
+2. Compute risks:
+```bash
+bash scripts/compute_risk.sh
+```
+
+3. Plot: refer to [plot.ipynb](plot.ipynb).
