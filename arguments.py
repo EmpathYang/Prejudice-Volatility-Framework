@@ -8,7 +8,7 @@ def parse_args_for_context_template_collection():
     parser.add_argument("--data_dir", type=str, required=False, default=DATA_DIR, help="Input data directory")
     parser.add_argument("--input_file", type=str, required=False, default="articles.jsonl", help="Input file name")
     parser.add_argument("--template_dir", type=str, required=False, default=TEMPLATE_DIR, help="Output template directory")
-    parser.add_argument("--template_file", type=str, required=True, help="Output file name")
+    parser.add_argument("--template_file", type=str, required=False, default="TemplateForGender.csv", help="Output file name")
     
     args = parser.parse_args()
     return args

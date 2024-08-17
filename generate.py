@@ -9,9 +9,117 @@ import re
 import jsonlines
 import os
 import csv
+import zstandard as zstd
+from datasets import Dataset
 from arguments import parse_args_for_context_template_collection
 from pattern.en import conjugate, PAST
 from utils import DATA_DIR
+
+def load_jsonl_zst_file(filepath):
+    data_list = []
+    if filepath.endswith('.jsonl.zst'):
+        with open(filepath, 'rb') as f:
+            decompressor = zstd.ZstdDecompressor()
+            with decompressor.stream_reader(f) as reader:
+                buffer = b''
+                while True:
+                    chunk = reader.read(65536)  # Adjust the buffer size as needed
+                    if not chunk:
+                        break
+                    buffer += chunk
+                    lines = buffer.splitlines(True)
+                    for line in lines[:-1]:
+                        data_list.append(json.loads(line.decode('utf-8')))
+                    buffer = lines[-1]
+            data_list.append(json.loads(buffer.splitlines(True)[0].decode('utf-8')))
+    return data_list
+
+def load_json_zst_file(filepath):
+    with open(filepath, 'rb') as f:
+        dctx = zstd.ZstdDecompressor()
+        with dctx.stream_reader(f) as reader:
+            data = reader.read()
+            data_list = json.loads(data.decode('utf-8'))
+    return data_list
+
+def load_original_set_split(filepaths):
+    dataset_list = []
+    for filepath in filepaths:
+        dataset_list += load_jsonl_zst_file(filepath)
+    dataset = Dataset.from_list(dataset_list)
+    dataset = dataset.remove_columns([col for col in dataset.column_names if col != "text"])
+    return dataset
+
+def load_original_textbook(filepaths):
+    dataset_list = []
+    for filepath in filepaths:
+        dataset_list += load_jsonl_zst_file(filepath)
+    dataset = Dataset.from_list(dataset_list)
+    dataset = dataset.remove_columns([col for col in dataset.column_names if col != "textbook"])
+    dataset = dataset.rename_column("textbook", "text")
+    return dataset
+
+def load_original_conversation(filepaths):
+    dataset_list = []
+    for filepath in filepaths:
+        dataset_list += load_json_zst_file(filepath)
+    dataset_list = [{"text": dataset_element} for dataset_element in dataset_list]
+    dataset = Dataset.from_list(dataset_list)
+    return dataset
+
+SET_SPLIT_ORIGINAL_DATASET_MAP = {
+    "web": load_original_set_split,
+    "book": load_original_set_split,
+    "textbook": load_original_textbook,
+    "conversation": load_original_conversation,
+}
+
+def is_valid_original_filename(filename):
+    def substring_before_digits(s):
+        match = re.search(r'^\D+', s)
+        if match:
+            return match.group(0)
+        return ""
+    if substring_before_digits(filename) in ["web", "book", "textbook", "conversation"] and (filename.endswith(".zst") or filename.endswith(".jsonl")) and filename.split(".")[0][len(substring_before_digits(filename)):].isdigit():
+        return True
+    return False
+
+def get_original_set_split_valid_filepaths(directory, set_split):
+    if not os.path.exists(directory):
+        return []
+    filenames = [filename for filename in os.listdir(directory) if is_valid_original_filename(filename) and filename.startswith(set_split)]
+    if not filenames:
+        return []
+    idxs = [int(filename.split(".")[0][len(set_split):]) for filename in filenames]
+    idxs = sorted(idxs)
+    suffix = ".".join(filenames[0].split(".")[1:])
+    filepaths = [os.path.join(directory, "{}{:04d}.{}".format(set_split, idx, suffix)) for idx in idxs]
+    return filepaths
+
+CORPUS_COMPOSITION = {
+    "web": 0.6,
+    "book": 0.05,
+    "textbook": 0.075,
+    "conversation": 0.025,
+}
+
+def sorted_set_splits(set_splits):
+    new_set_splits = sorted(list(set(["web", "book", "textbook", "conversation"]) & set(set_splits)), key=lambda item:(CORPUS_COMPOSITION[item], item), reverse=True)
+    return new_set_splits
+
+def load_original_dataset(general_data_dir, set_splits=["web", "book", "textbook", "conversation"], corpus_total_token_num_choice="10M"):
+    from datasets import DatasetDict, concatenate_datasets
+    raw_datasets = DatasetDict({})
+    for corpus_split in ["train"]:
+        dataset_list = []
+        for set_split in sorted_set_splits(set_splits=set_splits):
+            data_files = get_original_set_split_valid_filepaths(os.path.join(general_data_dir, "10M", corpus_split), set_split=set_split)
+            dataset = SET_SPLIT_ORIGINAL_DATASET_MAP[set_split](data_files)
+            dataset_list.append(dataset)
+        if dataset_list:
+            concatenated_dataset = concatenate_datasets(dataset_list).shuffle()
+            raw_datasets[corpus_split] = concatenated_dataset
+    return raw_datasets
 
 def select_mining_passage_from_wiki():
     import random
@@ -26,6 +134,17 @@ def select_mining_passage_from_wiki():
         for article in random_articles:
             writer.write(article)
 
+def select_mining_passage_from_different_sources():
+    import random
+    for set_split in ["web", "book", "textbook", "conversation"]:
+        dataset = load_original_dataset(general_data_dir=DATA_DIR, set_splits=[set_split])["train"]
+        random_indices = random.sample(range(len(dataset)), min(len(dataset), 1000))
+
+        random_articles = [dataset[i] for i in random_indices]
+
+        with jsonlines.open(os.path.join(DATA_DIR, f"{set_split}_articles.jsonl"), "w") as writer:
+            for article in random_articles:
+                writer.write(article)
 
 def get_text_n2n(template, sub_text, gendered_word, tokenizer):
     def enc(text):
@@ -668,45 +787,47 @@ def collect_template_mining_n2n(args):
     bracket = re.compile(r'\(.*\)|\{.*\}|\[.*\]')
 
     with jsonlines.open(data_path, 'r') as readers:
-        for line in tqdm(readers, desc='Paragraph'):
-            nlp_line = nlp(line['text'])
-            for sentence in nlp_line.sents:
-                sub = None
-                gendered_words = []
-                sentence = str(sentence).strip().replace('\n\n', ' ')
-                if len(sentence) > 0:
-                    sentence = bracket.sub('', sentence)
-                    nlp_sentence = nlp(sentence)
-                    tokens_str = [str(token) for token in nlp_sentence]
-                    tokens_span = [token for token in nlp_sentence]
-                    deps = [token.dep_ for token in nlp_sentence]
-                    try:
-                        sub = tokens_span[deps[:deps.index('ROOT')].index('nsubj')]
-                    except:
-                        pass
-                    for m_word in m_words:
-                        if m_word in tokens_str:
-                            gendered_words.append(m_word)
-                    for f_word in f_words:
-                        if f_word in tokens_str:
-                            gendered_words.append(f_word)    
-                    if sub and len(gendered_words) > 0 and str(sub) not in gendered_words:
-                        if nlp_sentence._.has_coref:
-                            clusters = nlp_sentence._.coref_clusters
-                            for cluster in clusters:
-                                if sub in cluster.main:
-                                    mention = [str(mention) for mention in cluster.mentions]
-                                    overlap = list(set(gendered_words)&set(mention))
-                                    if overlap:
-                                        mi = ' ' + overlap[0] + ' '
-                                        end1 = ' ' + overlap[0] + ','
-                                        end2 = ' ' + overlap[0] + '.'
-                                        judge, parse_res = depParse_n2n(nlp, sentence.replace(str(cluster.main), 'X').replace(mi, ' Y ').replace(end1, ' Y,').replace(end2, ' Y.'))
-                                        if judge:
-                                            if parse_res in relations.keys():
-                                                relations[parse_res] += 1
-                                            else:
-                                                relations[parse_res] = 1
+        for line in tqdm(readers, desc='Passage'):
+            split_lines = line['text'].split("\n")
+            for split_line in tqdm(split_lines, desc='Paragraph'):
+                nlp_line = nlp(split_line)
+                for sentence in nlp_line.sents:
+                    sub = None
+                    gendered_words = []
+                    sentence = str(sentence).strip().replace('\n\n', ' ')
+                    if len(sentence) > 0:
+                        sentence = bracket.sub('', sentence)
+                        nlp_sentence = nlp(sentence)
+                        tokens_str = [str(token) for token in nlp_sentence]
+                        tokens_span = [token for token in nlp_sentence]
+                        deps = [token.dep_ for token in nlp_sentence]
+                        try:
+                            sub = tokens_span[deps[:deps.index('ROOT')].index('nsubj')]
+                        except:
+                            pass
+                        for m_word in m_words:
+                            if m_word in tokens_str:
+                                gendered_words.append(m_word)
+                        for f_word in f_words:
+                            if f_word in tokens_str:
+                                gendered_words.append(f_word)    
+                        if sub and len(gendered_words) > 0 and str(sub) not in gendered_words:
+                            if nlp_sentence._.has_coref:
+                                clusters = nlp_sentence._.coref_clusters
+                                for cluster in clusters:
+                                    if sub in cluster.main:
+                                        mention = [str(mention) for mention in cluster.mentions]
+                                        overlap = list(set(gendered_words)&set(mention))
+                                        if overlap:
+                                            mi = ' ' + overlap[0] + ' '
+                                            end1 = ' ' + overlap[0] + ','
+                                            end2 = ' ' + overlap[0] + '.'
+                                            judge, parse_res = depParse_n2n(nlp, sentence.replace(str(cluster.main), 'X').replace(mi, ' Y ').replace(end1, ' Y,').replace(end2, ' Y.'))
+                                            if judge:
+                                                if parse_res in relations.keys():
+                                                    relations[parse_res] += 1
+                                                else:
+                                                    relations[parse_res] = 1
     relation = [(relation, relations[relation]) for relation in relations]
     relation = sorted(relation, key=lambda relation: relation[1], reverse=True)
 
@@ -723,38 +844,42 @@ def collect_template_mining_n2a(args):
     nlp = spacy.load(args.nlp_model)
 
     data_dir = args.data_dir
-    data_path = os.join(data_dir, args.input_file)
+    data_path = os.path.join(data_dir, args.input_file)
     output_dir = args.template_dir
     os.makedirs(output_dir, exist_ok=True)
 
     roots = {}
     bracket = re.compile(r'\(.*\)|\{.*\}|\[.*\]|\'|\"')
     with jsonlines.open(data_path, 'r') as readers:
-        for line in tqdm(readers, desc='Paragraph'):
-            nlp_line = nlp(line['text'])
-            for sentence in nlp_line.sents:
-                sentence = str(sentence).strip().replace('\n\n', ' ')
-                try:
-                    sentence = bracket.sub('', sentence).strip()
-                    if len(sentence) > 2:
-                        root = getRoot_n2a(nlp, sentence)
-                        if root and (root in roots.keys()):
-                            roots[root] += 1
-                        elif root:
-                            roots[root] = 1
-                except:
-                    pass
-
+        for line in tqdm(readers, desc='Passage'):
+            split_lines = line['text'].split("\n")
+            for split_line in tqdm(split_lines, desc='Paragraph'):
+                nlp_line = nlp(split_line)
+                for sentence in nlp_line.sents:
+                    sentence = str(sentence).strip().replace('\n\n', ' ')
+                    try:
+                        sentence = bracket.sub('', sentence).strip()
+                        if len(sentence) > 2:
+                            root = getRoot_n2a(nlp, sentence)
+                            if root and (root in roots.keys()):
+                                roots[root] += 1
+                            elif root:
+                                roots[root] = 1
+                    except:
+                        pass
     relations_dir = os.path.join(output_dir, args.template_file)
     relations_file = open(relations_dir, 'w')
     relations_writer = csv.writer(relations_file)
     relations_writer.writerow(['template', 'frequency'])
     for root in roots:
-        relations_writer.writerow(['The [X], who' + root + ', is [Y]', roots[root]])
+        relations_writer.writerow(['The [X], who ' + root + ', is [Y]', roots[root]])
     relations_file.close()
 
 
 if __name__ == "__main__":
     args = parse_args_for_context_template_collection()
-    select_mining_passage_from_wiki()
-    collect_template_mining_n2n(args)
+    select_mining_passage_from_different_sources()
+    for set_split in ["web", "book", "textbook", "conversation"]:
+        args.input_file = f"{set_split}_articles.jsonl"
+        args.template_file = f"{set_split}_TemplateForGeneric.csv"
+        collect_template_mining_n2a(args)

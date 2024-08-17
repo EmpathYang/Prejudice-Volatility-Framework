@@ -1,0 +1,5 @@
+white,caucasian,european
+black,african,negroid,afrodescendant
+asian,oriental,mongoloid
+hispanic,latino,latinx
+american indian,native american
